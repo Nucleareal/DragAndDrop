@@ -20,19 +20,38 @@ namespace StellaDragAndDropNS
         private static GameObject _object;
         private static Image _image;
         private static RectTransform _rect;
+        private static List<int> _highlights = new List<int>();
+        private static bool _isDragging = false;
+
+        [HarmonyPatch(typeof(GameCard), "Update")]
+        public static void Postfix(GameCard __instance)
+        {
+            if (__instance.IsDemoCard || !Plugin.Hightlights || !_isDragging)
+            {
+                return;
+            }
+            if(_highlights.Contains(__instance.GetHashCode()))
+            {
+                __instance.HighlightRectangle.enabled = true;
+                __instance.HighlightRectangle.Color = Color.red;
+            }
+        }
 
 
         private static void OnDragStart(GameCamera __instance)
         {
             _startPosition = WorldManager.instance.mouseWorldPosition;
-
-            //DragAndDrop._Logger.Log($"Drag Start At: {_startPosition}");
+            _isDragging = true;
         }
-        private static void OnDragEnd(GameCamera __instance)
-        {
-            _endPosition = WorldManager.instance.mouseWorldPosition;
 
-            //DragAndDrop._Logger.Log($"Drag End At: {_endPosition}");
+
+        private static void OnDragUpdate(GameCamera __instance)
+        {
+            if (!Plugin.Hightlights) return;
+
+            ClearHighlights();
+
+            _endPosition = WorldManager.instance.mouseWorldPosition;
 
             var counter = 0;
             List<GameCard> inRangeCards = new List<GameCard>();
@@ -42,10 +61,46 @@ namespace StellaDragAndDropNS
 
                 if (IsInRange(draggable, _startPosition, _endPosition))
                 {
-                    if (draggable is GameCard card)
+                    if (draggable is GameCard card && IsStackable(draggable, card))
+                    {
+                        _highlights.Add(card.GetHashCode());
+                    }
+                }
+            }
+        }
+
+        private static void ClearHighlights()
+        {
+            if (!Plugin.Hightlights) return;
+            _highlights.Clear();
+        }
+
+        private static bool IsStackable(Draggable draggable, GameCard card)
+        {
+            return card.CanBeDragged();
+        }
+
+        private static void OnDragEnd(GameCamera __instance)
+        {
+            _isDragging = false;
+            ClearHighlights();
+         
+            _endPosition = WorldManager.instance.mouseWorldPosition;
+
+            var counter = 0;
+            List<GameCard> inRangeCards = new List<GameCard>();
+            foreach (var draggable in WorldManager.instance.AllDraggables)
+            {
+                if (counter >= Plugin.MaxStacking) break;
+
+                if (IsInRange(draggable, _startPosition, _endPosition))
+                {
+                    if (draggable is GameCard card && IsStackable(draggable, card))
                     {
                         card.SetParent(null);
                         inRangeCards.Add(card);
+                        card.HighlightRectangle.Color = Color.white;
+                        card.HighlightRectangle.enabled = true;
                         counter++;
                     }
                 }
@@ -54,16 +109,25 @@ namespace StellaDragAndDropNS
             if (inRangeCards.Count == 0) return;
 
             inRangeCards.Sort((a, b) => a.CardData.Id.CompareTo(b.CardData.Id));
-            var queue = new Queue<GameCard>(inRangeCards);
+            inRangeCards.Sort((a, b) => a.CardData.MyCardType.CompareTo(b.CardData.MyCardType));
 
-            var parent = queue.Dequeue();
-            while (queue.Count > 0)
+            List<GameCard> stack = new List<GameCard>();
+            stack.Add(inRangeCards[0]);
+            for (int i = 1; i < inRangeCards.Count; i++)
             {
-                var card = queue.Dequeue();
-
-                card.SetParent(parent);
-                parent = card;
+                inRangeCards[i].RemoveFromStack();
+                if (stack.Last().CardData.CanHaveCardOnTop(inRangeCards[i].CardData))
+                    stack.Add(inRangeCards[i]);
+                else if (inRangeCards[i].CardData.CanHaveCardOnTop(stack.First().CardData))
+                    stack.Insert(0, inRangeCards[i]);
+                else
+                {
+                    WorldManager.instance.Restack(stack);
+                    stack.Clear();
+                    stack.Add(inRangeCards[i]);
+                }
             }
+            WorldManager.instance.Restack(stack);
         }
 
         private static bool IsInRange(Draggable draggable, Vector3 start, Vector3 end)
@@ -94,13 +158,18 @@ namespace StellaDragAndDropNS
                 OnDragStart(__instance);
             }
 
+            if (subButton.IsPressed())
+            {
+                //押されているならアップデート
+                OnDragUpdate(__instance);
+            }
+
             if (subButton.wasReleasedThisFrame)
             {
                 //離した瞬間
                 OnDragEnd(__instance);
             }
         }
-
         
         [HarmonyPatch(typeof(GameScreen), "Update")]
         [HarmonyPostfix]
