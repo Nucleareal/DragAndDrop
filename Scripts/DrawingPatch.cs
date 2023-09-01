@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -20,39 +21,48 @@ namespace StellaDragAndDropNS
         private static Image _image;
         private static RectTransform _rect;
 
+
         private static void OnDragStart(GameCamera __instance)
         {
             _startPosition = WorldManager.instance.mouseWorldPosition;
 
-            DragAndDrop._Logger.Log($"Drag Start At: {_startPosition}");
+            //DragAndDrop._Logger.Log($"Drag Start At: {_startPosition}");
         }
         private static void OnDragEnd(GameCamera __instance)
         {
             _endPosition = WorldManager.instance.mouseWorldPosition;
 
-            DragAndDrop._Logger.Log($"Drag End At: {_endPosition}");
+            //DragAndDrop._Logger.Log($"Drag End At: {_endPosition}");
 
-            Queue<GameCard> _list = new Queue<GameCard>();
+            var counter = 0;
+            List<GameCard> inRangeCards = new List<GameCard>();
             foreach (var draggable in WorldManager.instance.AllDraggables)
             {
+                if (counter >= Plugin.MaxStacking) break;
+
                 if (IsInRange(draggable, _startPosition, _endPosition))
                 {
-                    if (draggable is GameCard c)
+                    if (draggable is GameCard card)
                     {
-                        DragAndDrop._Logger.Log($"{c.CardNameText.text} is In Range!");
-
-                        _list.Enqueue(c);
+                        card.SetParent(null);
+                        inRangeCards.Add(card);
+                        counter++;
                     }
                 }
             }
 
-            if (_list.Count == 0) return;
+            if (inRangeCards.Count == 0) return;
 
-            var parent = _list.Dequeue();
-            while (_list.Count > 0)
+            inRangeCards.Sort((a, b) => a.CardData.Id.CompareTo(b.CardData.Id));
+            var queue = new Queue<GameCard>(inRangeCards);
+
+            var parent = queue.Dequeue();
+            while (queue.Count > 0)
             {
-                var card = _list.Dequeue();
-                WorldManager.instance.StackSendTo(card, parent);
+                var card = queue.Dequeue();
+
+                card.SetParent(parent);
+                parent = card;
             }
         }
 

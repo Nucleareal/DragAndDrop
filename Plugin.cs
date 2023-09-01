@@ -5,9 +5,13 @@ using UnityEngine;
 
 namespace StellaDragAndDropNS
 {
-    public class DragAndDrop : Mod
+    public class Plugin : Mod
     {
         private Harmony? harmony;
+
+        public static ConfigEntry<int> MaxStackingEntry;
+        public static int MaxStacking => MaxStackingEntry.Value;
+
         public static ModLogger? _Logger;
 
         private void Awake()
@@ -19,6 +23,8 @@ namespace StellaDragAndDropNS
         public override void Ready()
         {
             _Logger = Logger;
+
+            MaxStackingEntry = Config.GetEntry<int>("stacking_limit", 30);
 
             Logger.Log("Range selection Ready!");
         }
