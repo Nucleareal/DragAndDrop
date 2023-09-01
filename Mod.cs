@@ -3,13 +3,29 @@ using System;
 using System.Collections;
 using UnityEngine;
 
-namespace ExampleModNS
+namespace StellaDragAndDropNS
 {
-    public class ExampleMod : Mod
+    public class DragAndDrop : Mod
     {
+        private Harmony? harmony;
+        public static ModLogger? _Logger;
+
+        private void Awake()
+        {
+            harmony = new Harmony("StellaDragAndDropNS.DragAndDrop");
+            harmony.PatchAll();
+        }
+
         public override void Ready()
         {
-            Logger.Log("Ready!");
+            _Logger = Logger;
+
+            Logger.Log("Range selection Ready!");
+        }
+
+        private void OnDestroy()
+        {
+            harmony.UnpatchSelf();
         }
     }
 }
