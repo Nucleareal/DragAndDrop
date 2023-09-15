@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace StellaDragAndDropNS
 {
-    public class Plugin : Mod
+    public class Plugin : Mod, ITranslator
     {
         private Harmony? harmony;
 
@@ -31,12 +31,23 @@ namespace StellaDragAndDropNS
             MaxStackingEntry = Config.GetEntry<int>("stacking_limit", 30);
             HighlightsEntry = Config.GetEntry<bool>("highlights", true);
 
+            //Test
+            ContextMenuPatch.AddItem(new ConcreteContextMenuItem("menu_item_1", this, (e) => { }));
+            ContextMenuPatch.AddItem(new ConcreteContextMenuItem("menu_item_2", this, (e) => { }));
+            ContextMenuPatch.AddItem(new SeparatorContextMenuItem(this));
+            ContextMenuPatch.AddItem(new DeleteContextMenuItem(this));
+
             Logger.Log("Range selection Ready!");
         }
 
         private void OnDestroy()
         {
             harmony.UnpatchSelf();
+        }
+
+        public string Translate(string term)
+        {
+            return term;
         }
     }
 }
